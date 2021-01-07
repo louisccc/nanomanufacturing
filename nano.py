@@ -1,16 +1,15 @@
 import numpy as np
-import cv2, statistics
+import cv2, statistics, pprint
 from pathlib import Path
-import pprint
 
-def convert_video_to_images(avi_path):
-    frame_rate = 30
+
+def convert_video_to_images(avi_path, output_path):
     sampling_interval = 30
     cap = cv2.VideoCapture(avi_path)
     max_frame_no = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
    
     # create a empty folder 
-    root_folder_path = Path('./output')
+    root_folder_path = Path(output_path)
     root_folder_path.mkdir(exist_ok=True)
     
     # capture images in avi file according to the framerate.
@@ -27,6 +26,7 @@ bar2 = [(490, 95), (490, 900)]
 bar3 = [(710, 95), (710, 900)]
 bar4 = [(936, 95), (936, 900)]
 bar5 = [(1160, 95), (1160, 900)]
+
 
 def read_analyze_images(output_path):
     # should be a 4-tuple item list with each 4-tuple (x1, y1, x2, y2)
@@ -65,12 +65,6 @@ def read_analyze_images(output_path):
             cv2.circle(img, (a, b), r, (0, 255, 0), 2) # Draw the circumference of the circle. 
             cv2.circle(img, (a, b), 1, (0, 0, 255), 3) # Draw a small circle (of radius 1) to show the center. 
         
-        
-        
-        # perform particle detections?
-        # calculate the average x and y per zone.
-        # store it back to a list
-        
         try:
             x_avr_0 = sum([p[0] for p in bags_0]) / len(bags_0)
             x_std_0 = statistics.stdev([float(p[0]) for p in bags_0])
@@ -95,8 +89,9 @@ def read_analyze_images(output_path):
     with open('output1.txt', 'w') as file1, open('output2.txt', 'w') as file2:
         pprint.pprint(feature_group_0, file1)
         pprint.pprint(feature_group_1, file2)
+    
     import pdb; pdb.set_trace()
-if __name__ == "__main__":
-    avi_path = r"./10k20v.avi" 
-    # convert_video_to_images(avi_path)
+
+if __name__ == "__main__":  
+    convert_video_to_images(r"./10k20v.avi" , "./output")
     read_analyze_images("./output")
