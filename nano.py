@@ -16,7 +16,6 @@ class Config:
         self.parser.add_argument('--max_radius', type=int, default=50, help='Maximum radius for particles being detected.')
         self.parser.add_argument('--output_path_1', type=str, default='output1.txt', help="Output path for detected results in zone 1")
         self.parser.add_argument('--output_path_2', type=str, default='output2.txt', help="Output path for detected results in zone 2")
-        self.parser.add_argument('--dataset', type=str, default='-1', help="vertical lines for triming. 1 for 10k20v, 2 for 5mhzmv")
 
         args_parsed = self.parser.parse_args(args)
         for arg_name in vars(args_parsed):
@@ -31,27 +30,13 @@ class ParticleDetector:
         self.min_radius = cfg.min_radius
         self.max_radius = cfg.max_radius
 
-        if(cfg.dataset == '1'):
-            self.bar1 = [(265, 95), (265, 900)]
-            self.bar2 = [(490, 95), (490, 900)]
-            self.bar3 = [(710, 95), (710, 900)]
-            self.bar4 = [(936, 95), (936, 900)]
-            self.bar5 = [(1160, 95), (1160, 900)]
-
-        if(cfg.dataset == '2') :
-            self.bar1 = [(1, 65), (1, 890)]
-            self.bar2 = [(250, 95), (250, 900)]
-            self.bar3 = [(500, 95), (500, 900)]
-            self.bar4 = [(965, 95), (965, 900)]
-            self.bar5 = [(1300, 95), (1300, 900)]
-
         self.path1 = cfg.output_path_1
         self.path2 = cfg.output_path_2
 
-    def convert_video_to_images(self):
+    def convert_video_to_images(self, max_f_num = None):
         # sampling_interval = 30
         cap = cv2.VideoCapture(self.video_path)
-        max_frame_no = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        max_frame_no = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) if max_f_num == None else max_f_num
     
         # create a empty folder 
         root_folder_path = Path(self.image_path)
@@ -64,7 +49,7 @@ class ParticleDetector:
                 ret, frame = cap.read()
                 outname = root_folder_path /  (str(frame_no)+'.jpg')
                 cv2.imwrite(str(outname), frame)
-
+        print("Video %s conversion successful." %str(self.video_path))
 
     def read_analyze_images(self):
         # should be a 4-tuple item list with each 4-tuple (x1, y1, x2, y2)
@@ -104,6 +89,7 @@ class ParticleDetector:
                 cv2.circle(img, (a, b), 1, (0, 0, 255), 3) # Draw a small circle (of radius 1) to show the center. 
             
             try:
+                # TODO: change the reference line to the middle of each white region
                 x_avr_0 = sum([p[0] for p in bags_0]) / len(bags_0)
                 x_std_0 = statistics.stdev([float(p[0]) for p in bags_0])
                 y_avr_0 = sum([p[1] for p in bags_0]) / len(bags_0)
@@ -123,6 +109,8 @@ class ParticleDetector:
                 # cv2.imshow("Detected Circle", img) 
                 # cv2.waitKey(0)
 
+            print("Particle detecting %s successful." %str(image_path))
+
         feature_group_0 = sorted(feature_group_0, key=lambda x: x[0])
         feature_group_1 = sorted(feature_group_1, key=lambda x: x[0])
         
@@ -130,14 +118,46 @@ class ParticleDetector:
             pprint.pprint(feature_group_0, file1)
             pprint.pprint(feature_group_1, file2)
         
+        
         # import pdb; pdb.set_trace()
 
-if __name__ == "__main__":
-    ''' sample command python nano.py --video_path ./10k20v.avi --image_path ./output'''
+def run_video_10k20v():
     cfg = Config(sys.argv[1:])
     detector = ParticleDetector(cfg)
-    # detector.convert_video_to_images()
+    detector.bar1 = [(265, 95), (265, 900)]
+    detector.bar2 = [(490, 95), (490, 900)]
+    detector.bar3 = [(710, 95), (710, 900)]
+    detector.bar4 = [(936, 95), (936, 900)]
+    detector.bar5 = [(1160, 95), (1160, 900)]
+    detector.video_path = "./10k20v.avi"
+    detector.image_path = "./10k20v"
+    detector.path1 = "./10k20v_output1.txt"
+    detector.path2 = "./10k20v_output2.txt"
+    detector.convert_video_to_images(max_f_num=6300)
     detector.read_analyze_images()
-    # convert_video_to_images(r"./10k20v.avi" , "./output")
-    # read_analyze_images("./output")
-#Matt test of Github repo push
+
+def run_video_5mhz5v():
+    cfg = Config(sys.argv[1:])
+    detector = ParticleDetector(cfg)
+    detector.bar1 = [(1, 65), (1, 890)]
+    detector.bar2 = [(250, 95), (250, 900)]
+    detector.bar3 = [(500, 95), (500, 900)]
+    detector.bar4 = [(965, 95), (965, 900)]
+    detector.bar5 = [(1300, 95), (1300, 900)]
+    detector.video_path = "./5mhz5v.avi"
+    detector.image_path = "./5mhz5v"
+    detector.path1 = "./5mhz5v_output1.txt"
+    detector.path2 = "./5mhz5v_output2.txt"
+    detector.convert_video_to_images()
+    detector.read_analyze_images()
+
+
+if __name__ == "__main__":
+    '''
+        1. Include the two videos into this folder and rename as 10k20v.avi and 5mhz5v.avi.
+        2. Run python nano.py
+        3. The detected images are inside /10k20v and /5mhz5v folders
+        4. Result of features are 10k20v_output1/2.txt and 5mhz5v_output1/2.txt
+    '''
+    run_video_10k20v()
+    run_video_5mhz5v()
