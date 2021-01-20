@@ -14,7 +14,9 @@ class Config:
         self.parser.add_argument('--sampling_interval', type=int, default=30, help="Take one frame for every sampling interval.")
         self.parser.add_argument('--min_radius', type=int, default=1, help='Minimum radius for particles being detected.')
         self.parser.add_argument('--max_radius', type=int, default=50, help='Maximum radius for particles being detected.')
-
+        self.parser.add_argument('--output_path_1', type=str, default='output1.txt', help="Output path for detected results in zone 1")
+        self.parser.add_argument('--output_path_2', type=str, default='output2.txt', help="Output path for detected results in zone 2")
+        self.parser.add_argument('--dataset', type=str, default='-1', help="vertical lines for triming. 1 for 10k20v, 2 for 5mhzmv")
 
         args_parsed = self.parser.parse_args(args)
         for arg_name in vars(args_parsed):
@@ -29,11 +31,22 @@ class ParticleDetector:
         self.min_radius = cfg.min_radius
         self.max_radius = cfg.max_radius
 
-        self.bar1 = [(265, 95), (265, 900)]
-        self.bar2 = [(490, 95), (490, 900)]
-        self.bar3 = [(710, 95), (710, 900)]
-        self.bar4 = [(936, 95), (936, 900)]
-        self.bar5 = [(1160, 95), (1160, 900)]
+        if(cfg.dataset == '1'):
+            self.bar1 = [(265, 95), (265, 900)]
+            self.bar2 = [(490, 95), (490, 900)]
+            self.bar3 = [(710, 95), (710, 900)]
+            self.bar4 = [(936, 95), (936, 900)]
+            self.bar5 = [(1160, 95), (1160, 900)]
+
+        if(cfg.dataset == '2') :
+            self.bar1 = [(1, 65), (1, 890)]
+            self.bar2 = [(250, 95), (250, 900)]
+            self.bar3 = [(500, 95), (500, 900)]
+            self.bar4 = [(965, 95), (965, 900)]
+            self.bar5 = [(1300, 95), (1300, 900)]
+
+        self.path1 = cfg.output_path_1
+        self.path2 = cfg.output_path_2
 
     def convert_video_to_images(self):
         # sampling_interval = 30
@@ -101,21 +114,23 @@ class ParticleDetector:
                 y_avr_1 = sum([p[1] for p in bags_1]) / len(bags_1)
                 y_std_1 = statistics.stdev([float(p[1]) for p in bags_1])
 
-                feature_group_0.append((int(image_path.name.split('.')[0]), (x_avr_0, x_std_0, y_avr_0, y_std_0)))
-                feature_group_1.append((int(image_path.name.split('.')[0]), (x_avr_1, x_std_1, y_avr_1, y_std_1)))
+                feature_group_0.append((int(image_path.name.split('.')[0]), (round(x_avr_0, 3), round(x_std_0, 3), round(y_avr_0, 3), round(y_std_0, 3))))
+                feature_group_1.append((int(image_path.name.split('.')[0]), (round(x_avr_1, 3), round(x_std_1, 3), round(y_avr_1, 3), round(y_std_1, 3))))
             except:
                 print(image_path)
-                cv2.imshow("Detected Circle", img) 
-                cv2.waitKey(0) 
+                feature_group_0.append((int(image_path.name.split('.')[0]), (-1, -1, -1, -1)))
+                feature_group_1.append((int(image_path.name.split('.')[0]), (-1, -1, -1, -1)))
+                # cv2.imshow("Detected Circle", img) 
+                # cv2.waitKey(0)
 
         feature_group_0 = sorted(feature_group_0, key=lambda x: x[0])
         feature_group_1 = sorted(feature_group_1, key=lambda x: x[0])
         
-        with open('output1.txt', 'w') as file1, open('output2.txt', 'w') as file2:
+        with open(self.path1, 'w') as file1, open(self.path2, 'w') as file2:
             pprint.pprint(feature_group_0, file1)
             pprint.pprint(feature_group_1, file2)
         
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
 
 if __name__ == "__main__":
     ''' sample command python nano.py --video_path ./10k20v.avi --image_path ./output'''
