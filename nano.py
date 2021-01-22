@@ -63,6 +63,8 @@ class ParticleDetector:
         
         feature_group_0 = []
         feature_group_1 = []
+        feature_group_normalized_0 = []
+        feature_group_normalized_1 = []
 
         for image_path in Path(self.image_path).glob("**/*.jpg"):
             bags_0 = []
@@ -100,6 +102,8 @@ class ParticleDetector:
             ''' calculate features for each bead '''
             features_bag_0 = self.get_features_for_bag(bags_0)
             features_bag_1 = self.get_features_for_bag(bags_1)
+            features_normalized_bag_0 = self.get_features_for_bag_normalized(bags_0, 2, 3)
+            features_normalized_bag_1 = self.get_features_for_bag_normalized(bags_1, 4, 5)
 
             if features_bag_0 == (-1, -1, -1, -1):
                 print("detecting beads having issues in zone 0: %s" % image_path)
@@ -107,11 +111,13 @@ class ParticleDetector:
                 print("detecting beads having issues in zone 1: %s" % image_path)
 
             feature_group_0.append((int(image_path.name.split('.')[0]), features_bag_0))
-            feature_group_1.append((int(image_path.name.split('.')[0]), features_bag_0))
+            feature_group_1.append((int(image_path.name.split('.')[0]), features_bag_1))
+            feature_group_normalized_0.append((int(image_path.name.split('.')[0]), features_normalized_bag_0))
+            feature_group_normalized_1.append((int(image_path.name.split('.')[0]), features_normalized_bag_1))
 
             print("Particle detecting %s successful." % str(image_path))
         
-        return feature_group_0, feature_group_1
+        return feature_group_0, feature_group_1, feature_group_normalized_0, feature_group_normalized_1
         
     def draw_bars(self):
         ''' draw bars and stores the resulting images in bar_image_folder_path (for debug) '''
@@ -153,6 +159,31 @@ class ParticleDetector:
             # cv2.imshow("Detected Circle", img) 
             # cv2.waitKey(0)
 
+    def get_features_for_bag_normalized(self, bag, bar1, bar2):
+        if bar1 == 2 and bar2 == 3:
+            reference = self.bar2[0][0] + self.bar3[1][0]
+        elif bar1 == 4 and bar2 == 5:
+            reference = self.bar4[0][0] + self.bar5[1][0]
+        else:
+            reference = 0
+        reference = reference/2
+
+        try:
+            x_avr = round(sum([(p[0] - reference) for p in bag]) / len(bag), 3)
+
+            x_std = round(statistics.stdev([float(p[0] - reference) for p in bag]), 3)
+            y_avr = round(sum([p[1] for p in bag]) / len(bag), 3)
+            y_std = round(statistics.stdev([float(p[1]) for p in bag]), 3)
+            
+            #TODO: [From Louis] do we check this?
+            num_beads = len(bag)
+
+            return (x_avr, x_std, y_avr, y_std)
+        except: 
+            return (-1, -1, -1, -1)
+            # cv2.imshow("Detected Circle", img) 
+            # cv2.waitKey(0)
+
 
 def run_video_10k20v():
     ''' 
@@ -171,8 +202,9 @@ def run_video_10k20v():
     detector.detected_image_path = "./10k20v_result_frame"
     detector.convert_video_to_images(max_f_num=6300)
     detector.draw_bars()
-    features_0, features_1 = detector.read_analyze_images()
+    features_0, features_1, features_normalized_0, features_normalized_1 = detector.read_analyze_images()
     detector.store_to_txt_files("./10k20v_output1.txt", "./10k20v_output2.txt", features_0, features_1)
+    detector.store_to_txt_files("./10k20v_output1_norm.txt", "./10k20v_output2_norm.txt", features_normalized_0, features_normalized_1)
 
 def run_video_5mhz5v():
     ''' 
