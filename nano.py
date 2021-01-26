@@ -169,9 +169,13 @@ class ParticleDetector:
         reference = reference/2
 
         try:
-            x_avr = round(sum([(p[0] - reference) for p in bag]) / len(bag), 3)
+            # temp_x_avr = 0
+            # for p in bag:
+            #     temp_x_avr += abs(p[0]-reference)
+            # x_avr = round(temp_x_avr / len(bag), 3)
+            x_avr = round(sum([(abs(p[0] - reference)) for p in bag]) / len(bag), 3)
 
-            x_std = round(statistics.stdev([float(p[0] - reference) for p in bag]), 3)
+            x_std = round(statistics.stdev([float(abs(p[0] - reference)) for p in bag]), 3)
             y_avr = round(sum([p[1] for p in bag]) / len(bag), 3)
             y_std = round(statistics.stdev([float(p[1]) for p in bag]), 3)
             
