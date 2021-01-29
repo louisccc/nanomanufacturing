@@ -73,6 +73,7 @@ class ParticleDetector:
             kernel = np.ones((5,5),np.uint8)
             img = cv2.morphologyEx(img, cv2.MORPH_OPEN, kernel)
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            gray_blurred = cv2.blur(gray, (3,3))
 
             detected_circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1,20, param1=50,param2=30,minRadius=self.min_radius, maxRadius=self.max_radius)
             detected_circles = np.uint16(np.around(detected_circles)) 
@@ -153,9 +154,9 @@ class ParticleDetector:
             #TODO: [From Louis] do we check this?
             num_beads = len(bag)
 
-            return (x_avr, x_std, y_avr, y_std)
+            return (x_avr, x_std, y_avr, y_std, num_beads)
         except: 
-            return (-1, -1, -1, -1)
+            return (-1, -1, -1, -1, 0)
             # cv2.imshow("Detected Circle", img) 
             # cv2.waitKey(0)
 
@@ -182,9 +183,9 @@ class ParticleDetector:
             #TODO: [From Louis] do we check this?
             num_beads = len(bag)
 
-            return (x_avr, x_std, y_avr, y_std)
+            return (x_avr, x_std, y_avr, y_std, num_beads)
         except: 
-            return (-1, -1, -1, -1)
+            return (-1, -1, -1, -1, 0)
             # cv2.imshow("Detected Circle", img) 
             # cv2.waitKey(0)
 
@@ -195,15 +196,9 @@ def run_video_10k20v():
     '''
     cfg = Config(sys.argv[1:])
     detector = ParticleDetector(cfg)
-    detector.bar1 = [(265, 95), (265, 900)]
-    detector.bar2 = [(490, 95), (490, 900)]
-    detector.bar3 = [(710, 95), (710, 900)]
-    detector.bar4 = [(936, 95), (936, 900)]
-    detector.bar5 = [(1160, 95), (1160, 900)]
-    detector.video_path = "./10k20v.avi"
-    detector.image_path = "./10k20v_extracted_frame"
-    detector.bar_image_path = "./10k20v_bar_frame"
-    detector.detected_image_path = "./10k20v_result_frame"
+    
+    # ... some parameter settings
+
     detector.convert_video_to_images(max_f_num=6300)
     detector.draw_bars()
     features_0, features_1, features_normalized_0, features_normalized_1 = detector.read_analyze_images()
@@ -234,11 +229,5 @@ def run_video_5mhz5v():
 
 
 if __name__ == "__main__":
-    '''
-        1. Include the two videos into this folder and rename as 10k20v.avi and 5mhz5v.avi.
-        2. Run python nano.py
-        3. The detected images are inside /10k20v and /5mhz5v folders
-        4. Result of features are 10k20v_output1/2.txt and 5mhz5v_output1/2.txt
-    '''
     run_video_10k20v()
     # run_video_5mhz5v()
