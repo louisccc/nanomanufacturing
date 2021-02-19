@@ -21,6 +21,9 @@ class Config:
         self.parser.add_argument('--output_path_2', type=str, default='output2.txt', help="Output path for detected results in zone 2")
         self.parser.add_argument('--smooth_box_size', type=int, default=-1, help="Size of the averaging box used for smoothing through 1D Convlution")
         self.parser.add_argument('--invalid_box_size', type=int, default=5, help="Size of the averaging box used for invalid data replacement")
+        self.parser.add_argument('--param1', type=int, default=50, help="Parameter1 for HoughCircles()")
+        self.parser.add_argument('--param2', type=int, default=25, help="Parameter2 for HoughCircles()")
+        self.parser.add_argument('--output_time', type=int, default=0, help='Output x-axis in seconds instead of frame number')
         args_parsed = self.parser.parse_args(args)
         for arg_name in vars(args_parsed):
             self.__dict__[arg_name] = getattr(args_parsed, arg_name)
@@ -37,13 +40,14 @@ class ParticleDetector:
         self.max_radius = cfg.max_radius
         self.smooth_box_size = cfg.smooth_box_size
         self.invalid_box_size = cfg.invalid_box_size
-
+        self.fps = 0
         self.path1 = cfg.output_path_1
         self.path2 = cfg.output_path_2
 
     def convert_video_to_images(self, max_f_num = None):
         # sampling_interval = 30
         cap = cv2.VideoCapture(self.video_path)
+        self.fps = cap.get(cv2.CAP_PROP_FPS)
         max_frame_no = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) if max_f_num == None else max_f_num
     
         # create a empty folder 
@@ -80,19 +84,21 @@ class ParticleDetector:
             img = cv2.morphologyEx(img, cv2.MORPH_OPEN, kernel)
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-            detected_circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1,20, param1=50,param2=18,minRadius=self.min_radius, maxRadius=self.max_radius)
-            detected_circles = np.uint16(np.around(detected_circles))
-            
-            ''' filtering the detected circles out of area of interests '''
-            for pt in detected_circles[0, :]: 
-                a, b, r = pt[0], pt[1], pt[2]          
-                
-                if b < self.bar1[0][1] or b > self.bar1[1][1]: #filtering particles that are too high or too low.
-                    continue
-                if (a >= self.bar2[0][0] and a <= self.bar3[0][0]):
-                    bags_0.append((a,b,r))
-                if (a >= self.bar4[0][0] and a <= self.bar5[0][0]):
-                    bags_1.append((a,b,r))
+            detected_circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1,20, param1=self.config.param1,param2=self.config.param2,minRadius=self.min_radius, maxRadius=self.max_radius)
+            try:
+                detected_circles = np.uint16(np.around(detected_circles))         
+                ''' filtering the detected circles out of area of interests '''
+                for pt in detected_circles[0, :]: 
+                    a, b, r = pt[0], pt[1], pt[2]          
+                    
+                    if b < self.bar1[0][1] or b > self.bar1[1][1]: #filtering particles that are too high or too low.
+                        continue
+                    if (a >= self.bar2[0][0] and a <= self.bar3[0][0]):
+                        bags_0.append((a,b,r))
+                    if (a >= self.bar4[0][0] and a <= self.bar5[0][0]):
+                        bags_1.append((a,b,r))
+            except:
+                dummy=0
 
             ''' draw bars and detected circles '''
             cv2.line(gray, self.bar1[0], self.bar1[1], (0, 255, 0))
@@ -162,19 +168,29 @@ class ParticleDetector:
     def store_to_csv_files(self, path1, path2, feature_bag_0, feature_bag_1):
         with open(path1, 'w') as csvfile1:
             spamwriter = csv.writer(csvfile1)
-            spamwriter.writerow(["Frames","x_avr" ,"x_std"," avg_norm_x","avg_norm_abs_x","std_norm_abs_x","num_beads"])
+            if self.config.output_time:
+                spamwriter.writerow(["Sec","x_avr" ,"x_std"," avg_norm_x","avg_norm_abs_x","std_norm_abs_x","num_beads"])
+            else:
+                spamwriter.writerow(["Frames","x_avr" ,"x_std"," avg_norm_x","avg_norm_abs_x","std_norm_abs_x","num_beads"])
             for rows in feature_bag_0:
                 temp_list = [rows[0]]
                 temp_list[1:]= [i for i in rows[1]]
+                if self.config.output_time:
+                    temp_list[0] = round(temp_list[0]/self.fps, 2)
                 # temp_list.insert(0, rows[0])
                 spamwriter.writerow(temp_list)
 
         with open(path2, 'w') as csvfile2:
             spamwriter = csv.writer(csvfile2)
-            spamwriter.writerow(["Frames","x_avr" ,"x_std"," avg_norm_x","avg_norm_abs_x","std_norm_abs_x","num_beads"])
+            if self.config.output_time:
+                spamwriter.writerow(["Sec","x_avr" ,"x_std"," avg_norm_x","avg_norm_abs_x","std_norm_abs_x","num_beads"])
+            else:
+                spamwriter.writerow(["Frames","x_avr" ,"x_std"," avg_norm_x","avg_norm_abs_x","std_norm_abs_x","num_beads"])
             for rows in feature_bag_1:
                 temp_list = [rows[0]]
                 temp_list[1:]= [i for i in rows[1]]
+                if self.config.output_time:
+                    temp_list[0] = round(temp_list[0]/self.fps, 2)
                 # temp_list.insert(0, rows[0])
                 spamwriter.writerow(temp_list)
 
@@ -211,6 +227,25 @@ class ParticleDetector:
             for i in range(int(self.smooth_box_size/2), int(len(feature_bag)-(self.smooth_box_size/2))):
                 feature_bag[i][1][smooth_idx] = round(smooth_output[i],3)
         return feature_bag
+    
+    def check_bars(self):
+        for image_path in Path(self.image_path).glob("**/*.jpg"):
+            img = cv2.imread(str(image_path))
+            height, width, channels = img.shape
+            cv2.line(img, self.bar1[0], self.bar1[1], (0, 255, 0))
+            cv2.line(img, self.bar2[0], self.bar2[1], (0, 255, 0))
+            cv2.line(img, self.bar3[0], self.bar3[1], (0, 255, 0))
+            cv2.line(img, self.bar4[0], self.bar4[1], (0, 255, 0))
+            cv2.line(img, self.bar5[0], self.bar5[1], (0, 255, 0))
+            for x_bars in range(0, height, 100):
+                cv2.line(img, (0, x_bars),(width, x_bars), (255, 0, 0))
+                cv2.putText(img, str(x_bars), (0, x_bars), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+            for y_bars in range(0, width, 100):
+                cv2.line(img, (y_bars, 0), (y_bars, height), (255, 0, 0))
+                cv2.putText(img, str(y_bars), (y_bars, height), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+            cv2.imshow('check_bars',img)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
 
 def run_video_10k20v():
     ''' 
@@ -229,7 +264,7 @@ def run_video_10k20v():
     detector.detected_image_path = "./10k20v/result_frame"
 
     detector.convert_video_to_images(max_f_num=6300)
-    detector.draw_bars()
+    # detector.draw_bars()
     features_0, features_1 = detector.read_analyze_images()
     # smooth_features_0 = detector.smooth_convolve(features_0)
     detector.store_to_csv_files("./10k20v/output1.csv", "./10k20v/output2.csv", features_0, features_1)
@@ -252,7 +287,8 @@ def run_video_5mhz5v():
     detector.path1 = "./5mhz5v_output1.txt"
     detector.path2 = "./5mhz5v_output2.txt"
     detector.convert_video_to_images()
-    detector.draw_bars()
+    detector.check_bars()
+    # detector.draw_bars()
     features_0, features_1 = detector.read_analyze_images()
     detector.store_to_csv_files("./5mhz5v_output1.csv", "./5mhz5v_output2.csv", features_0, features_1)
 
@@ -263,20 +299,21 @@ def run_video_2mhz1v():
     cfg = Config(sys.argv[1:])
     detector = ParticleDetector(cfg)
     detector.bar1 = [(35, 5), (35, 800)]
-    detector.bar2 = [(290, 5), (290, 800)]
-    detector.bar3 = [(550, 5), (550, 800)]
-    detector.bar4 = [(805, 5), (805, 800)]
-    detector.bar5 = [(970, 5), (970, 800)]
+    detector.bar2 = [(35, 5), (35, 800)]
+    detector.bar3 = [(290, 5), (290, 800)]
+    detector.bar4 = [(550, 5), (550, 800)]
+    detector.bar5 = [(805, 5), (805, 800)]
     detector.video_path = "./2mhz1v.avi"		
-    detector.image_path = "./2mhz1v/extracted_frame"		
-    detector.bar_image_path = "./2mhz1v/bar_frame"		
-    detector.detected_image_path = "./2mhz1v/result_frame"
+    detector.image_path = "./2mhz1v(%s_%s)/extracted_frame" % (cfg.param1, cfg.param2)
+    detector.bar_image_path = "./2mhz1v(%s_%s)/bar_frame" % (cfg.param1, cfg.param2)
+    detector.detected_image_path = "./2mhz1v(%s_%s)/result_frame" % (cfg.param1, cfg.param2)
 
-    detector.convert_video_to_images()
-    detector.draw_bars()
+    detector.convert_video_to_images(max_f_num=27000)
+    detector.check_bars()
+    # detector.draw_bars()
     features_0, features_1 = detector.read_analyze_images()
     # smooth_features_0 = detector.smooth_convolve(features_0)
-    detector.store_to_csv_files("./2mhz1v/output1.csv", "./2mhz1v/output2.csv", features_0, features_1)
+    detector.store_to_csv_files("./2mhz1v(%s_%s)/output1.csv" % (cfg.param1, cfg.param2) , "./2mhz1v(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), features_0, features_1)
 
 def run_video_20k_1v_layercage():
     ''' 
@@ -289,19 +326,20 @@ def run_video_20k_1v_layercage():
     detector.bar3 = [(285, 0), (285, 765)]
     detector.bar4 = [(550, 0), (550, 765)]
     detector.bar5 = [(800, 0), (800, 765)]
-    detector.video_path = "./20k_1v_layercage.avi"		
-    detector.image_path = "./20k_1v_layercage_extracted_frame"		
-    detector.bar_image_path = "./20k_1v_layercage_bar_frame"		
-    detector.detected_image_path = "./20k_1v_layercage_result_frame"
+    output_folder = "./20k_1v(%s_%s)" % (cfg.param1, cfg.param2)
+    detector.video_path = "./20k_1v_layercage.avi"	
+    detector.image_path = "./20k_1v(%s_%s)/extracted_frame" % (cfg.param1, cfg.param2)	
+    detector.bar_image_path = "./20k_1v(%s_%s)/bar_frame" % (cfg.param1, cfg.param2)	
+    detector.detected_image_path = "./20k_1v(%s_%s)/result_frame" % (cfg.param1, cfg.param2)
 
     detector.convert_video_to_images()
-    detector.draw_bars()
+    # detector.draw_bars()
     features_0, features_1 = detector.read_analyze_images()
     # smooth_features_0 = detector.smooth_convolve(features_0)
-    detector.store_to_csv_files("./20k_1v_output1.csv", "./2mhz1v_output2.csv", features_0, features_1)
+    detector.store_to_csv_files("./20k_1v(%s_%s)/output1.csv" % (cfg.param1, cfg.param2), "./20k_1v(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), features_0, features_1)
 
 if __name__ == "__main__":
-    run_video_10k20v()
+    # run_video_10k20v()
     # run_video_5mhz5v()
     run_video_2mhz1v()
     run_video_20k_1v_layercage()
