@@ -5,6 +5,10 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 import os
 import sys
 import csv
+import matplotlib.pyplot as plt
+
+from sklearn.linear_model import LinearRegression
+
 
 class Config:
     '''Configuration and Argument Parser for particle detection.'''
@@ -19,11 +23,13 @@ class Config:
         self.parser.add_argument('--max_radius', type=int, default=30, help='Maximum radius for particles being detected.')
         self.parser.add_argument('--output_path_1', type=str, default='output1.txt', help="Output path for detected results in zone 1")
         self.parser.add_argument('--output_path_2', type=str, default='output2.txt', help="Output path for detected results in zone 2")
-        self.parser.add_argument('--smooth_box_size', type=int, default=-1, help="Size of the averaging box used for smoothing through 1D Convlution")
+        self.parser.add_argument('--smooth_box_size', type=int, default=9, help="Size of the averaging box used for smoothing through 1D Convlution")
         self.parser.add_argument('--invalid_box_size', type=int, default=5, help="Size of the averaging box used for invalid data replacement")
         self.parser.add_argument('--param1', type=int, default=50, help="Parameter1 for HoughCircles()")
         self.parser.add_argument('--param2', type=int, default=25, help="Parameter2 for HoughCircles()")
         self.parser.add_argument('--output_time', type=int, default=0, help='Output x-axis in seconds instead of frame number')
+        self.parser.add_argument('--polarity', type=int, default=1, help='Output detection result of positive or negative DEP')
+        self.parser.add_argument('--polarity_limit', type=int, default=2, help='cut-off between moving and not moving for polarity detection')
         args_parsed = self.parser.parse_args(args)
         for arg_name in vars(args_parsed):
             self.__dict__[arg_name] = getattr(args_parsed, arg_name)
@@ -209,7 +215,7 @@ class ParticleDetector:
             avg_norm_x = round(sum([(p[0] - reference) for p in bag]) / len(bag), 3)
             avg_norm_abs_x = round(sum([(abs(p[0] - reference)) for p in bag]) / len(bag), 3)
             std_norm_abs_x = round(statistics.stdev([float(abs(p[0] - reference)) for p in bag]), 3)
-                       
+
             num_beads = len(bag)
 
             return [x_avr, x_std, avg_norm_x, avg_norm_abs_x, std_norm_abs_x, num_beads]
@@ -246,6 +252,28 @@ class ParticleDetector:
             cv2.imshow('check_bars',img)
             cv2.waitKey(0)
             cv2.destroyAllWindows()
+
+
+    def check_polarity(self, feature_bag, feature_index, sampling_range=20):
+        # This approach tries to find a regression line for each feature within a sampling range.
+        # the slope of each regression are associated with the last feature in the range
+        
+        for i in range(sampling_range, len(feature_bag)):
+            sampling_bag = []
+            for bag_loop in range(sampling_range, 0, -1):
+                sampling_bag.append(feature_bag[i - bag_loop][1][feature_index])
+            # polynomial regression with order of 1. Return two values, Ax+B.
+            result = np.polyfit(range(0, sampling_range * self.sampling_interval, self.sampling_interval), list(sampling_bag), 1)
+            slope = result[0]
+            feature_bag[i][1].append(slope)
+
+            # plot for testing
+            # plt.scatter(range(0, sampling_range * self.sampling_interval, self.sampling_interval), sampling_bag, color='red')
+            # plt.plot(range(0, sampling_range * self.sampling_interval, self.sampling_interval), model.predict(input_x),color='blue')
+            # plt.show()
+            # import pdb; pdb.set_trace()
+
+
 
 def run_video_10k20v():
     ''' 
@@ -309,11 +337,13 @@ def run_video_2mhz1v():
     detector.detected_image_path = "./2mhz1v(%s_%s)/result_frame" % (cfg.param1, cfg.param2)
 
     detector.convert_video_to_images(max_f_num=27000)
-    detector.check_bars()
+    # detector.check_bars()
     # detector.draw_bars()
     features_0, features_1 = detector.read_analyze_images()
+    smooth_features_0 = detector.smooth_convolve(features_0)
+    detector.check_polarity(smooth_features_0, 3)
     # smooth_features_0 = detector.smooth_convolve(features_0)
-    detector.store_to_csv_files("./2mhz1v(%s_%s)/output1.csv" % (cfg.param1, cfg.param2) , "./2mhz1v(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), features_0, features_1)
+    detector.store_to_csv_files("./2mhz1v(%s_%s)/output1.csv" % (cfg.param1, cfg.param2) , "./2mhz1v(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), smooth_features_0, features_1)
 
 def run_video_20k_1v_layercage():
     ''' 
@@ -342,5 +372,5 @@ if __name__ == "__main__":
     # run_video_10k20v()
     # run_video_5mhz5v()
     run_video_2mhz1v()
-    run_video_20k_1v_layercage()
+    # run_video_20k_1v_layercage()
 
