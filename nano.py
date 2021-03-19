@@ -60,7 +60,7 @@ class ParticleDetector:
         self.Pminus=0    # a priori error estimate
         self.K=0         # gain or blending factor
 
-        self.cap = None
+        self.cap = cv2.VideoCapture(0)
 
 
     def convert_video_to_images(self, max_f_num = None):
@@ -217,6 +217,7 @@ class ParticleDetector:
         INVALID_DATA = [-1, -1, -1, -1, -1, 0]
         num_feature = len(features[0][1])
         features_return = features
+    
         for i in range(min([self.config.invalid_box_size, len(features_return)])):
             if features_return[i][1] == INVALID_DATA:
                 features_return[i][1] = features_return[i - 1][1]
@@ -342,7 +343,7 @@ class ParticleDetector:
             cv2.destroyAllWindows()
 
 
-    def check_polarity(self, feature_bag, feature_index, sampling_range=10):
+    def check_polarity(self, feature_bag, feature_index, sampling_range=60):
         # This approach tries to find a regression line for each feature within a sampling range.
         # the slope of each regression are associated with the last feature in the range
         
@@ -369,8 +370,19 @@ class ParticleDetector:
             # plt.show()
             # import pdb; pdb.set_trace()
 
-    def polarity(self, watching_window):
-        pass
+    def polarity(self, watching_window, feature_index, sampling_range=60):
+        sampling_bag = []
+        if len(watching_window) > sampling_range:
+            for bag_loop in range(sampling_range, 0, -1):
+                sampling_bag.append(watching_window[sampling_range - bag_loop][1][feature_index])
+            result = np.polyfit(range(0, sampling_range * self.sampling_interval, self.sampling_interval), list(sampling_bag), 1)
+        else:
+            for bag_loop in range(len(watching_window), 0, -1):
+                import pdb; pdb.set_trace()
+                sampling_bag.append(watching_window[len(watching_window) - bag_loop][1][feature_index])
+            result = np.polyfit(range(0, len(watching_window) * self.sampling_interval, self.sampling_interval), list(sampling_bag), 1)
+
+        return result[0]
 
 def run_video_10k20v():
     ''' 
@@ -482,13 +494,23 @@ def realtime_framework():
     detector.detected_image_path = "./2mhz1v(%s_%s)/result_frame" % (cfg.param1, cfg.param2)
     # input video
     # TODO: camera support
+
+    ####
+    if not self.cap.isOpened():
+            self.try_open_camera()
+            if not self.cap.isOpened():
+                print("can't open camera")
+                return -1
+    ret, frame = self.cap.read()
+    cv2.imshow("test", frame)
+    ####
     total_frames = detector.video_read()
     result_zone0 = []
     result_zone1 = []
     frame_no = 0
     k = 30
     delta = 0.05
-    watching_window = queue.Queue(k)
+    watching_window = []
     POSDEP = 0
     NEGDEP = 1 
     NOTMOVE= 2
@@ -498,78 +520,29 @@ def realtime_framework():
             break
 
         current_frame = detector.get_frame(frame_no)
-        current_features = detector.analyze_frame(current_frame, frame_no)
-        watching_window.put([frame_no, current_features])
+        current_features_0, current_features_1 = detector.analyze_frame(current_frame, frame_no)
+        watching_window.append(current_features_0)
 
         # apply post-processing for data in watching_window.
         detector.invalid_data_replacement(watching_window)
-        slope = detector.check_polarity(watching_window)
+        if(len(watching_window) > 10):
+            slope = detector.polarity(watching_window, 4, 60)
+            result_zone0.append(slope)
+            if abs(float(slope)) <= delta:
+                STATE = NOTMOVE
+            elif slope > 0:
+                STATE = POSDEP
+            else:
+                STATE = NEGDEP
 
-        if abs(slope) <= delta:
-            STATE = NOTMOVE
-        elif slope > 0:
-            STATE = POSDEP
-        else:
-            STATE = NEGDEP
-
-        # TODO: According to the STATE, adjust volt/freq using function generator.
-        if STATE == POSDEP:
-            pass
-        elif STATE == NEGDEP:
-            pass
-
-        frame_no += detector.sampling_interval
-
-    detector.store_to_csv_files("./2mhz1v(%s_%s)/output1.csv" % (cfg.param1, cfg.param2) , "./2mhz1v(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), result_zone0, result_zone1)
-
-def framework_test():
-    # config setup
-    cfg = Config(sys.argv[1:])
-    detector = ParticleDetector(cfg)
-    detector.bar1 = [(35, 5), (35, 800)]
-    detector.bar2 = [(35, 5), (35, 800)]
-    detector.bar3 = [(290, 5), (290, 800)]
-    detector.bar4 = [(550, 5), (550, 800)]
-    detector.bar5 = [(805, 5), (805, 800)]
-    detector.video_path = "./2mhz1v.avi"
-    detector.detected_image_path = "./2mhz1v(%s_%s)/result_frame" % (cfg.param1, cfg.param2)
-    # input video
-    # TODO: camera support
-    total_frames = detector.video_read()
-    result_zone0 = []
-    result_zone1 = []
-    frame_no = 0
-    k = 30
-    delta = 0.05
-    watching_window = queue.Queue(k)
-    POSDEP = 0
-    NEGDEP = 1 
-    NOTMOVE= 2
-    STATE = NOTMOVE
-    while True:
-        if frame_no > int(total_frames):
-            break
-
-        current_frame = detector.get_frame(frame_no)
-        current_features = detector.analyze_frame(current_frame, frame_no)
-        watching_window.put([frame_no, current_features])
-
-        # apply post-processing for data in watching_window.
-        detector.invalid_data_replacement(watching_window)
-        slope = detector.check_polarity(watching_window)
-
-        if abs(slope) <= delta:
-            STATE = NOTMOVE
-        elif slope > 0:
-            STATE = POSDEP
-        else:
-            STATE = NEGDEP
-
-        # TODO: According to the STATE, adjust volt/freq using function generator.
-        if STATE == POSDEP:
-            pass
-        elif STATE == NEGDEP:
-            pass
+            # TODO: According to the STATE, adjust volt/freq using function generator.
+            if STATE == POSDEP:
+                pass
+                # increase freq by a number e.g. 100k
+                # 
+            elif STATE == NEGDEP:
+                pass
+                # decreae freq
 
         frame_no += detector.sampling_interval
 
@@ -579,7 +552,7 @@ def framework_test():
 if __name__ == "__main__":
     # run_video_10k20v()
     # run_video_5mhz5v()
-    run_video_2mhz1v()
+    # run_video_2mhz1v()
     # run_video_20k_1v_layercage()
-    # framework_test()
 
+    realtime_framework()
