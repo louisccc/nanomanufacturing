@@ -54,11 +54,11 @@ class ParticleDetector:
         self.path1 = cfg.output_path_1
         self.path2 = cfg.output_path_2
 
-        self.xhat=np.zeros(sz)      # a posteri estimate of x
-        self.P=np.zeros(sz)         # a posteri error estimate
-        self.xhatminus=np.zeros(sz) # a priori estimate of x
-        self.Pminus=np.zeros(sz)    # a priori error estimate
-        self.K=np.zeros(sz)         # gain or blending factor
+        self.xhat=0      # a posteri estimate of x
+        self.P=0         # a posteri error estimate
+        self.xhatminus=0 # a priori estimate of x
+        self.Pminus=0    # a priori error estimate
+        self.K=0         # gain or blending factor
 
         self.cap = None
 
