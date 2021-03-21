@@ -378,7 +378,7 @@ class ParticleDetector:
             result = np.polyfit(range(0, sampling_range * self.sampling_interval, self.sampling_interval), list(sampling_bag), 1)
         else:
             for bag_loop in range(len(watching_window), 0, -1):
-                import pdb; pdb.set_trace()
+                # import pdb; pdb.set_trace()
                 sampling_bag.append(watching_window[len(watching_window) - bag_loop][1][feature_index])
             result = np.polyfit(range(0, len(watching_window) * self.sampling_interval, self.sampling_interval), list(sampling_bag), 1)
 
@@ -448,11 +448,8 @@ def run_video_2mhz1v():
     detector.convert_video_to_images(max_f_num=27000)
 
     features_0, features_1 = detector.read_analyze_images()
-    import pdb; pdb.set_trace()
     smooth_features_0 = detector.smooth_convolve(features_0)
-    pdb.set_trace()
     smooth_features_sg_0 = detector.smooth_sg(features_0)
-    pdb.set_trace()
     detector.check_polarity(smooth_features_0, 3)
     detector.store_to_csv_files("./2mhz1v(%s_%s)/output1.csv" % (cfg.param1, cfg.param2) , "./2mhz1v(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), features_0, features_1)
     detector.store_to_csv_files("./2mhz1v(%s_%s)/output1_conv.csv" % (cfg.param1, cfg.param2) , "./2mhz1v(%s_%s)/output2_conv.csv" % (cfg.param1, cfg.param2), smooth_features_0, features_1)
@@ -495,15 +492,6 @@ def realtime_framework():
     # input video
     # TODO: camera support
 
-    ####
-    if not self.cap.isOpened():
-            self.try_open_camera()
-            if not self.cap.isOpened():
-                print("can't open camera")
-                return -1
-    ret, frame = self.cap.read()
-    cv2.imshow("test", frame)
-    ####
     total_frames = detector.video_read()
     result_zone0 = []
     result_zone1 = []
@@ -511,6 +499,7 @@ def realtime_framework():
     k = 30
     delta = 0.05
     watching_window = []
+    watching_window_1 = []
     POSDEP = 0
     NEGDEP = 1 
     NOTMOVE= 2
@@ -521,7 +510,8 @@ def realtime_framework():
 
         current_frame = detector.get_frame(frame_no)
         current_features_0, current_features_1 = detector.analyze_frame(current_frame, frame_no)
-        watching_window.append(current_features_0)
+        watching_window.append([frame_no,current_features_0])
+        watching_window_1.append([frame_no,current_features_1])
 
         # apply post-processing for data in watching_window.
         detector.invalid_data_replacement(watching_window)
@@ -546,13 +536,13 @@ def realtime_framework():
 
         frame_no += detector.sampling_interval
 
-    detector.store_to_csv_files("./2mhz1v(%s_%s)/output1.csv" % (cfg.param1, cfg.param2) , "./2mhz1v(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), result_zone0, result_zone1)
+    detector.store_to_csv_files("./2mhz1v(%s_%s)/output1.csv" % (cfg.param1, cfg.param2) , "./2mhz1v(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), watching_window, watching_window_1)
 
 
 if __name__ == "__main__":
     # run_video_10k20v()
     # run_video_5mhz5v()
-    # run_video_2mhz1v()
+    run_video_2mhz1v()
     # run_video_20k_1v_layercage()
 
-    realtime_framework()
+    # realtime_framework()
