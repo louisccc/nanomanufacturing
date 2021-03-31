@@ -8,7 +8,6 @@ import csv
 import matplotlib.pyplot as plt
 import scipy.signal
 import copy
-from PIL import ImageGrab
 import pyvisa as visa
 import libusb1
 import usb1
@@ -552,14 +551,21 @@ def realtime_framework_screenshot():
     detector.bar3 = [(290, 5), (290, 800)]
     detector.bar4 = [(550, 5), (550, 800)]
     detector.bar5 = [(805, 5), (805, 800)]
-    detector.detected_image_path = "./2mhz1v(%s_%s)/result_frame" % (cfg.param1, cfg.param2)
+    output_folder = "./screen(%s_%s)" % (cfg.param1, cfg.param2)
+    detector.detected_image_path = "./screen(%s_%s)/result_frame" % (cfg.param1, cfg.param2)
+    
+    # create a empty folder 
+    root_folder_path = Path(output_folder)
+    result_folder_path = Path(detector.detected_image_path)
+    root_folder_path.mkdir(parents=True, exist_ok=True)
+    result_folder_path.mkdir(parents=True, exist_ok=True)
 
     # screen recording with pyautogui. Save video for debugging purposes
     screenWidth, screenHeight = pyautogui.size() # get screen size
     resolution = (screenWidth, screenHeight)
     codec = cv2.VideoWriter_fourcc(*"XVID") # define codec
-    filename = "Recording.avi" # 
-    fps = 60.0
+    filename = "./screen(%s_%s)/recording.avi" % (cfg.param1, cfg.param2)
+    fps = 60.0 # FPS for video storage, not actual frame rate
     video_out = cv2.VideoWriter(filename, codec, fps, resolution) 
     cv2.namedWindow("Monitor", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Monitor", 480, 270)
@@ -620,7 +626,7 @@ def realtime_framework_screenshot():
 
         frame_no += 1
 
-    detector.store_to_csv_files("./2mhz1v(%s_%s)/output1.csv" % (cfg.param1, cfg.param2) , "./2mhz1v(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), watching_window, watching_window_1)
+    detector.store_to_csv_files("./screen(%s_%s)/output1.csv" % (cfg.param1, cfg.param2) , "./screen(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), watching_window, watching_window_1)
     # Stop video recording
     video_out.release()
     cv2.destroyAllWindows()
