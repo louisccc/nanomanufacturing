@@ -8,6 +8,12 @@ import csv
 import matplotlib.pyplot as plt
 import scipy.signal
 import copy
+from PIL import ImageGrab
+import pyvisa as visa
+import libusb1
+import usb1
+import time
+import pyautogui
 
 import queue
 
@@ -490,7 +496,6 @@ def realtime_framework():
     detector.video_path = "./2mhz1v.avi"
     detector.detected_image_path = "./2mhz1v(%s_%s)/result_frame" % (cfg.param1, cfg.param2)
     # input video
-    # TODO: camera support
 
     total_frames = detector.video_read()
     result_zone0 = []
@@ -538,11 +543,93 @@ def realtime_framework():
 
     detector.store_to_csv_files("./2mhz1v(%s_%s)/output1.csv" % (cfg.param1, cfg.param2) , "./2mhz1v(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), watching_window, watching_window_1)
 
+def realtime_framework_screenshot():
+    # config setup
+    cfg = Config(sys.argv[1:])
+    detector = ParticleDetector(cfg)
+    detector.bar1 = [(35, 5), (35, 800)]
+    detector.bar2 = [(35, 5), (35, 800)]
+    detector.bar3 = [(290, 5), (290, 800)]
+    detector.bar4 = [(550, 5), (550, 800)]
+    detector.bar5 = [(805, 5), (805, 800)]
+    detector.detected_image_path = "./2mhz1v(%s_%s)/result_frame" % (cfg.param1, cfg.param2)
+
+    # screen recording with pyautogui. Save video for debugging purposes
+    screenWidth, screenHeight = pyautogui.size() # get screen size
+    resolution = (screenWidth, screenHeight)
+    codec = cv2.VideoWriter_fourcc(*"XVID") # define codec
+    filename = "Recording.avi" # 
+    fps = 60.0
+    video_out = cv2.VideoWriter(filename, codec, fps, resolution) 
+    cv2.namedWindow("Monitor", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("Monitor", 480, 270)
+
+    # FunctionGen setup
+    # resources = visa.ResourceManager() #Establishes the resource (i.e equipment) manager from PyVISA
+    # funcgen = resources.open_resource('USB0::0xF4EC::0xEE38::SDG2XCAC1L3169::INSTR') #Creates a name for the specific resource and opens the resource. The argument is the resource name specific to the function generator
+    
+    # AutoGUI setup
+    # TODO: Automated software setup according to SOP
+
+    result_zone0 = []
+    result_zone1 = []
+    frame_no = 0
+    k = 30
+    delta = 0.05
+    watching_window = []
+    watching_window_1 = []
+    POSDEP = 0
+    NEGDEP = 1 
+    NOTMOVE= 2
+    STATE = NOTMOVE
+    while True:
+        # Stop video recording by pressing q
+        if cv2.waitKey(1) == ord('q'):
+            break
+        
+        # get screen as video input
+        current_screen = pyautogui.screenshot()
+        current_frame = np.array(current_screen)
+        current_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2RGB) # convert color from BGR to RGB
+        video_out.write(current_frame) # store frame in the video for future reference
+        cv2.imshow("Monitor", current_frame)
+        current_features_0, current_features_1 = detector.analyze_frame(current_frame, frame_no)
+        watching_window.append([frame_no,current_features_0])
+        watching_window_1.append([frame_no,current_features_1])
+
+        # apply post-processing for data in watching_window.
+        detector.invalid_data_replacement(watching_window)
+        if(len(watching_window) > 10):
+            slope = detector.polarity(watching_window, 4, 60)
+            result_zone0.append(slope)
+            if abs(float(slope)) <= delta:
+                STATE = NOTMOVE
+            elif slope > 0:
+                STATE = POSDEP
+            else:
+                STATE = NEGDEP
+
+            # TODO: According to the STATE, adjust volt/freq using function generator.
+            if STATE == POSDEP:
+                pass
+                # increase freq by a number e.g. 100k
+                # 
+            elif STATE == NEGDEP:
+                pass
+                # decreae freq
+
+        frame_no += 1
+
+    detector.store_to_csv_files("./2mhz1v(%s_%s)/output1.csv" % (cfg.param1, cfg.param2) , "./2mhz1v(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), watching_window, watching_window_1)
+    # Stop video recording
+    video_out.release()
+    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     # run_video_10k20v()
     # run_video_5mhz5v()
-    run_video_2mhz1v()
+    # run_video_2mhz1v()
     # run_video_20k_1v_layercage()
 
     # realtime_framework()
+    realtime_framework_screenshot()
