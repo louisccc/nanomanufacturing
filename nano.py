@@ -120,7 +120,7 @@ class ParticleDetector:
             for pt in detected_circles[0, :]: 
                 a, b, r = pt[0], pt[1], pt[2]          
                 
-                if b < self.bar1[0][1] or b > self.bar1[1][1]: #filtering particles that are too high or too low.
+                if b < self.bar2[0][1] or b > self.bar2[1][1]: #filtering particles that are too high or too low.
                     continue
                 if (a >= self.bar2[0][0] and a <= self.bar3[0][0]):
                     bags_0.append((a,b,r))
@@ -130,16 +130,17 @@ class ParticleDetector:
             dummy=0
 
         ''' draw bars and detected circles '''
-        cv2.line(gray, self.bar1[0], self.bar1[1], (0, 255, 0))
-        cv2.line(gray, self.bar2[0], self.bar2[1], (0, 255, 0))
-        cv2.line(gray, self.bar3[0], self.bar3[1], (0, 255, 0))
-        cv2.line(gray, self.bar4[0], self.bar4[1], (0, 255, 0))
-        cv2.line(gray, self.bar5[0], self.bar5[1], (0, 255, 0))    
+        # cv2.line(frame, self.bar1[0], self.bar1[1], (0, 255, 0))
+        cv2.line(frame, self.bar2[0], self.bar2[1], (0, 255, 0), 5)
+        cv2.line(frame, self.bar3[0], self.bar3[1], (0, 255, 0), 5)
+        # cv2.line(frame, self.bar4[0], self.bar4[1], (0, 255, 0))
+        # cv2.line(frame, self.bar5[0], self.bar5[1], (0, 255, 0))    
         for a,b,r in bags_0+bags_1:
-            cv2.circle(gray, (a, b), r, (0, 255, 0), 2) # Draw the circumference of the circle. 
-            cv2.circle(gray, (a, b), 1, (0, 0, 255), 3) # Draw a small circle (of radius 1) to show the center. 
+            cv2.circle(frame, (a, b), r, (0, 0, 255), 2) # Draw the circumference of the circle. 
+            cv2.circle(frame, (a, b), 1, (255, 0, 0), 3) # Draw a small circle (of radius 1) to show the center. 
         out_path = "{}/{}.jpg".format(str(detected_image_folder_path), str(frame_no))
-        cv2.imwrite(out_path, gray)
+        cv2.imwrite(out_path, frame)
+        cv2.imshow("Monitor", frame)
 
         ''' calculate features for each bead '''
         features_bag_0 = self.get_features_for_bag(bags_0, 2, 3)
@@ -547,8 +548,8 @@ def realtime_framework_screenshot():
     cfg = Config(sys.argv[1:])
     detector = ParticleDetector(cfg)
     detector.bar1 = [(35, 5), (35, 800)]
-    detector.bar2 = [(35, 5), (35, 800)]
-    detector.bar3 = [(290, 5), (290, 800)]
+    detector.bar2 = [(200, 40), (200, 1040)]
+    detector.bar3 = [(800, 40), (800, 1040)]
     detector.bar4 = [(550, 5), (550, 800)]
     detector.bar5 = [(805, 5), (805, 800)]
     output_folder = "./screen(%s_%s)" % (cfg.param1, cfg.param2)
@@ -598,14 +599,14 @@ def realtime_framework_screenshot():
         current_frame = np.array(current_screen)
         current_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2RGB) # convert color from BGR to RGB
         video_out.write(current_frame) # store frame in the video for future reference
-        cv2.imshow("Monitor", current_frame)
+        # cv2.imshow("Monitor", current_frame)
         current_features_0, current_features_1 = detector.analyze_frame(current_frame, frame_no)
         watching_window.append([frame_no,current_features_0])
         watching_window_1.append([frame_no,current_features_1])
 
         # apply post-processing for data in watching_window.
         detector.invalid_data_replacement(watching_window)
-        if(len(watching_window) > 10):
+        if(len(watching_window) > 40):
             slope = detector.polarity(watching_window, 4, 60)
             result_zone0.append(slope)
             if abs(float(slope)) <= delta:
