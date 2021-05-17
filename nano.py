@@ -323,7 +323,14 @@ def framework_test():
     detector.store_to_csv_files("./2mhz1v(%s_%s)/output1.csv" % (cfg.param1, cfg.param2) , "./2mhz1v(%s_%s)/output2.csv" % (cfg.param1, cfg.param2), watching_window, watching_window_1)
 
 def framework_run():
-    # config setup
+    # The main function for the real time framework. Implemeted through a while loop.
+    # For each frame, the while loop processes in the following order:
+    #   1. Capture the frame and covert to RGB (if needed), store frame for future reference
+    #   2. detect particles in the frame with ParticleDetector.analyze_frame() and store result in the queue
+    #   3. apply post processing (invalid data replacement and data smoothing) on collected data
+    #   4. determine the moving direction of particles through ParticleDetector.polarity() and adjust funciton generator accordingly
+
+    # setup
     cfg = Config(sys.argv[1:])
     detector = ParticleDetector(cfg)
     detector.bar1 = [(35, 5), (35, 800)]
@@ -368,6 +375,7 @@ def framework_run():
     NEGDEP = 1 
     NOTMOVE= 2
     STATE = NOTMOVE
+
     while True:
         # Stop video recording by pressing q
         if cv2.waitKey(1) == ord('q'):
