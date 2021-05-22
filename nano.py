@@ -82,6 +82,7 @@ class ParticleDetector:
             return frame
 
     def analyze_frame(self, frame, frame_no):
+        # detect particles and retrieve coordinates as features for each frame
         INVALID_DATA = [-1, -1, -1, -1, -1, 0]
         bags_0 = []
         bags_1 = []
@@ -220,7 +221,7 @@ class ParticleDetector:
     def polarity(self, watching_window, feature_index, sampling_range=60):
         # This funciton determines the moving direction of particles by performing linear regression on a section of data.
         # The format of linear regression is y= Ax + B; the return value is the coefficient of x, which is A in the equation.
-        # the slope of each regression are associated with the last feature in the range
+        # the slope of each regression is associated with the last feature in the range.
         sampling_bag = []
         if len(watching_window) > sampling_range:
             for bag_loop in range(sampling_range, 0, -1):
@@ -381,12 +382,14 @@ def framework_run():
         if cv2.waitKey(1) == ord('q'):
             break
         
-        # get screen as video input
+        # screenshot as new frame input
         current_screen = pyautogui.screenshot()
         current_frame = np.array(current_screen)
         current_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2RGB) # convert color from BGR to RGB
         video_out.write(current_frame) # store frame in the video for future reference
         # cv2.imshow("Monitor", current_frame)
+
+        # Particle detection & feature extraction
         current_features_0, current_features_1 = detector.analyze_frame(current_frame, frame_no)
         watching_window.append([frame_no,current_features_0])
         watching_window_1.append([frame_no,current_features_1])
@@ -394,6 +397,7 @@ def framework_run():
         # apply post-processing for data in watching_window.
         detector.invalid_data_replacement(watching_window)
         if(len(watching_window) > 40):
+            # Particle Movement Determination 
             slope = detector.polarity(watching_window, 4, 60)
             result_zone0.append(slope)
             if abs(float(slope)) <= delta:
